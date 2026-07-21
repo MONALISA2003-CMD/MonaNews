@@ -1,0 +1,57 @@
+name: Unzip Uploaded Project
+
+on:
+  push:
+    paths:
+      - "*.zip"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find the uploaded zip
+        id: findzip
+        run: |
+          ZIP_FILE=$(find . -maxdepth 1 -name "*.zip" | head -n 1)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "No zip file at repo root — nothing to do."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "zip=$ZIP_FILE" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract it
+        if: steps.findzip.outputs.found == 'true'
+        run: unzip -o "${{ steps.findzip.outputs.zip }}" -d ./_extracted
+
+      - name: Flatten if the zip has one wrapping folder
+        if: steps.findzip.outputs.found == 'true'
+        run: |
+          shopt -s dotglob
+          ITEMS=(./_extracted/*)
+          if [ "${#ITEMS[@]}" -eq 1 ] && [ -d "${ITEMS[0]}" ]; then
+            mv "${ITEMS[0]}"/* .
+          else
+            mv ./_extracted/* .
+          fi
+          rm -rf ./_extracted
+
+      - name: Remove the original zip
+        if: steps.findzip.outputs.found == 'true'
+        run: rm -f "${{ steps.findzip.outputs.zip }}"
+
+      - name: Commit the extracted project
+        if: steps.findzip.outputs.found == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Auto-extract uploaded zip" || echo "Nothing to commit"
+          git push
