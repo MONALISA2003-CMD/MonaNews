@@ -31,16 +31,17 @@ jobs:
         if: steps.findzip.outputs.found == 'true'
         run: unzip -o "${{ steps.findzip.outputs.zip }}" -d ./_extracted
 
-      - name: Flatten if the zip has one wrapping folder
+      - name: Flatten and merge into repo root
         if: steps.findzip.outputs.found == 'true'
         run: |
           shopt -s dotglob
           ITEMS=(./_extracted/*)
           if [ "${#ITEMS[@]}" -eq 1 ] && [ -d "${ITEMS[0]}" ]; then
-            mv "${ITEMS[0]}"/* .
+            SRC="${ITEMS[0]}"
           else
-            mv ./_extracted/* .
+            SRC="./_extracted"
           fi
+          cp -a "$SRC"/. .
           rm -rf ./_extracted
 
       - name: Remove the original zip
